@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Interactive Music Visualizer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <h1>Interactive Music Visualizer</h1>
+
+    <div class="visualization-container" id="visualization-container">
+      <div id="three-container"></div>
+      <div class="note-overlay" id="note-overlay"></div>
+    </div>
+
+    <div class="controls">
+      <!-- Sphere Status -->
+      <div class="sphere-status idle" id="sphere-status">
+        Click the sphere to start recording your performance
+      </div>
+
+      <!-- Keyboard Instructions -->
+      <div class="keyboard-instructions">
+        <h3>Keyboard Controls</h3>
+        <div class="keyboard-grid">
+          <div class="key-section piano-keys">
+            <h4>Piano Keys:</h4>
+            <div class="key-display" id="piano-key-display"></div>
+          </div>
+          <div class="key-section drum-keys">
+            <h4>Drum Keys:</h4>
+            <div class="key-display" id="drum-key-display"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Piano Keys Visual -->
+      <div class="piano-visual" id="piano-visual"></div>
+
+      <!-- Instructions -->
+      <div class="instructions">
+        <p class="instructions-title">Instructions:</p>
+        <p class="instructions-text">
+          • Use keyboard keys A-L for piano notes and Z-M for different drum
+          pitches<br />
+          • Hold piano keys for sustained notes<br />
+          • Click the sphere to record/loop your performance<br />
+          • The sphere deforms dramatically based on all audio in real-time<br />
+          • Colored rectangles show note timing and pitch as you play
+        </p>
+      </div>
+    </div>
+
+    <script src="script.js"></script>
+  </body>
+</html>
