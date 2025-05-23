@@ -1,6 +1,6 @@
 // Global variables
 let scene, camera, renderer, sphere, originalPositions;
-let analyser, drumSynth, pianoSynth;
+let analyser, audioContext;
 let animationId;
 let isPlaying = false;
 let audioStarted = false;
@@ -8,13 +8,19 @@ let pressedKeys = new Set();
 let noteRectangles = [];
 let raycaster, mouse;
 
+// Audio arrays for managing multiple instances
+let drumAudioSources = [];
+let noteAudioSources = [];
+
 // Recording and looping variables
 let isRecording = false;
 let isLooping = false;
 let recordedSequence = [];
 let recordingStartTime = 0;
 let activePianoNotes = new Map(); // Track sustained piano notes
-let scheduledLoops = []; // Track scheduled loops for cleanup
+let loopTimeouts = []; // Track scheduled loops for cleanup
+let loopStartTime = 0;
+let loopDuration = 0;
 
 // Piano and drum configurations
 const pianoNotes = ["C4", "D4", "E4", "F4", "G4", "A4", "B4", "C5", "D5"];
@@ -43,41 +49,122 @@ const drumColors = [
   "#55a3ff",
 ];
 
+// Audio buffer arrays
+let drumBuffers = [];
+let noteBuffers = [];
+let drumAudioElements = [];
+let noteAudioElements = [];
+let drumAudioPools = []; // Pre-loaded audio pools for instant playback
+let noteAudioPools = [];
+
 // Initialize audio
 async function initializeAudio() {
   if (audioStarted) return;
 
   try {
-    await Tone.start();
-
-    // Create drum synth
-    drumSynth = new Tone.MembraneSynth({
-      pitchDecay: 0.05,
-      octaves: 10,
-      oscillator: { type: "sine" },
-      envelope: {
-        attack: 0.001,
-        decay: 0.4,
-        sustain: 0.01,
-        release: 1.4,
-      },
-    }).toDestination();
-
-    // Create piano synth
-    pianoSynth = new Tone.PolySynth(Tone.Synth, {
-      oscillator: { type: "triangle" },
-      envelope: { attack: 0.02, decay: 0.1, sustain: 0.3, release: 1 },
-    }).toDestination();
+    // Create audio context
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
 
     // Create analyser
-    analyser = new Tone.Analyser("fft", 128);
-    Tone.Destination.connect(analyser);
+    analyser = audioContext.createAnalyser();
+    analyser.fftSize = 256;
+    analyser.connect(audioContext.destination);
+
+    // Load audio files
+    await loadAudioFiles();
 
     audioStarted = true;
     console.log("Audio initialized successfully");
   } catch (error) {
     console.error("Audio initialization failed:", error);
   }
+}
+
+// Load audio files
+async function loadAudioFiles() {
+  console.log("Loading audio files...");
+
+  // Load drum audio files with optimized settings
+  for (let i = 1; i <= 7; i++) {
+    try {
+      const audio = new Audio(`drums/drum${i}.mp3`);
+      audio.preload = "auto";
+      audio.crossOrigin = "anonymous";
+      audio.volume = 0.7;
+      audio.load();
+      drumAudioElements.push(audio);
+
+      // Create audio pool for instant playback (5 copies per sound)
+      const pool = [];
+      for (let j = 0; j < 5; j++) {
+        const poolAudio = new Audio(`drums/drum${i}.mp3`);
+        poolAudio.preload = "auto";
+        poolAudio.crossOrigin = "anonymous";
+        poolAudio.volume = 0.7;
+        poolAudio.load();
+        pool.push(poolAudio);
+      }
+      drumAudioPools.push(pool);
+    } catch (error) {
+      console.error(`Failed to load drum${i}.mp3:`, error);
+      drumAudioElements.push(new Audio());
+      drumAudioPools.push([]);
+    }
+  }
+
+  // Load note audio files with optimized settings
+  for (let i = 1; i <= 9; i++) {
+    try {
+      const audio = new Audio(`notes/note${i}.mp3`);
+      audio.preload = "auto";
+      audio.crossOrigin = "anonymous";
+      audio.volume = 0.6;
+      audio.load();
+      noteAudioElements.push(audio);
+
+      // Create audio pool for instant playback (3 copies per sound)
+      const pool = [];
+      for (let j = 0; j < 3; j++) {
+        const poolAudio = new Audio(`notes/note${i}.mp3`);
+        poolAudio.preload = "auto";
+        poolAudio.crossOrigin = "anonymous";
+        poolAudio.volume = 0.6;
+        poolAudio.load();
+        pool.push(poolAudio);
+      }
+      noteAudioPools.push(pool);
+    } catch (error) {
+      console.error(`Failed to load note${i}.mp3:`, error);
+      noteAudioElements.push(new Audio());
+      noteAudioPools.push([]);
+    }
+  }
+
+  // Wait for all audio files to be ready
+  const allAudio = [...drumAudioElements, ...noteAudioElements];
+  const allPoolAudio = drumAudioPools.flat().concat(noteAudioPools.flat());
+
+  await Promise.all(
+    [...allAudio, ...allPoolAudio].map((audio) => {
+      return new Promise((resolve) => {
+        if (audio.readyState >= 3) {
+          resolve();
+        } else {
+          audio.addEventListener("canplaythrough", resolve, {
+            once: true,
+          });
+          audio.addEventListener("error", resolve, { once: true });
+        }
+      });
+    })
+  );
+
+  console.log("Audio files loaded and ready");
+}
+
+// Get current time (replacement for Tone.now())
+function getCurrentTime() {
+  return performance.now() / 1000;
 }
 
 // Initialize Three.js
@@ -170,7 +257,7 @@ async function toggleRecordingLoop() {
 function startRecording() {
   isRecording = true;
   recordedSequence = [];
-  recordingStartTime = Tone.now();
+  recordingStartTime = getCurrentTime();
 
   // Update sphere size and status
   sphere.scale.set(1.2, 1.2, 1.2);
@@ -191,20 +278,32 @@ function stopRecordingAndStartLoop() {
     return;
   }
 
-  // Important: Set isRecording to false BEFORE starting loop
+  // Stop recording
   isRecording = false;
+
+  // Calculate loop duration based on the last event - NO EXTRA BUFFER
+  const sortedSequence = [...recordedSequence].sort((a, b) => a.time - b.time);
+  const lastEvent = sortedSequence[sortedSequence.length - 1];
+
+  // For piano notes, add their duration to get the true end time
+  // For drums, add a small amount for the sound to complete
+  const lastEventEndTime =
+    lastEvent.time + (lastEvent.type === "piano" ? lastEvent.duration : 0.1);
+
+  // Use the exact musical duration with minimal buffer (0.05s max)
+  loopDuration = Math.max(1.0, lastEventEndTime + 0.05);
+
+  console.log("Calculated loop duration:", loopDuration, "seconds (seamless)");
+
+  // Start looping
   isLooping = true;
 
   // Update sphere size and status
   sphere.scale.set(1.5, 1.5, 1.5);
   updateSphereStatus("looping", "Looping... Click to stop");
 
-  console.log("About to start playback loop...");
-
   // Start the loop
   startPlaybackLoop();
-
-  console.log("Loop should now be playing!");
 }
 
 // Stop recording
@@ -221,18 +320,9 @@ function stopRecording() {
 function stopLooping() {
   isLooping = false;
 
-  // Stop transport and clear all scheduled events
-  Tone.Transport.stop();
-  Tone.Transport.cancel();
-
-  // Clean up all scheduled loops
-  scheduledLoops.forEach((loop) => loop.dispose());
-  scheduledLoops = [];
-
-  if (currentLoop) {
-    currentLoop.dispose();
-    currentLoop = null;
-  }
+  // Clear all scheduled timeouts
+  loopTimeouts.forEach((timeout) => clearTimeout(timeout));
+  loopTimeouts = [];
 
   sphere.scale.set(1, 1, 1);
   updateSphereStatus(
@@ -250,144 +340,51 @@ function startPlaybackLoop() {
     return;
   }
 
-  // Sort notes by their original recording time to preserve the musical sequence
-  const sortedNotes = [...recordedSequence].sort((a, b) => a.time - b.time);
+  console.log("Starting seamless playback loop with duration:", loopDuration);
 
-  // Separate piano and drum notes for different processing
-  const pianoNotes = sortedNotes.filter((note) => note.type === "piano");
-  const drumNotes = sortedNotes.filter((note) => note.type === "drum");
+  // Function to play one loop iteration
+  function playLoopIteration() {
+    if (!isLooping) return;
 
-  let normalizedSequence = [];
-  let firstNoteTime = sortedNotes[0].time;
-  let musicalDuration = 0;
+    console.log("=== Starting new loop iteration (seamless) ===");
 
-  if (pianoNotes.length > 0 && drumNotes.length > 0) {
-    // Mixed piano and drums - preserve exact timing for both
-    const lastNote = sortedNotes[sortedNotes.length - 1];
-    const lastNoteEndTime =
-      lastNote.time + (lastNote.type === "piano" ? lastNote.duration : 0.3);
-    musicalDuration = lastNoteEndTime - firstNoteTime;
+    // Schedule each recorded event
+    recordedSequence.forEach((event) => {
+      const noteTimeout = setTimeout(() => {
+        if (!isLooping) return;
 
-    normalizedSequence = sortedNotes.map((note) => ({
-      ...note,
-      normalizedTime: note.time - firstNoteTime,
-    }));
+        console.log(
+          `Playing ${event.type} ${event.note} at time ${event.time}`
+        );
 
-    console.log("Mixed piano/drums - preserving exact timing");
-  } else if (drumNotes.length > 0 && pianoNotes.length === 0) {
-    // Only drums - create tight rhythm by reducing gaps
-    console.log("Drums only - creating tight rhythm");
+        if (event.type === "piano") {
+          playNoteAudioByIndex(event.index, event.duration);
+          addNoteRectangle(
+            event.note,
+            event.color,
+            event.duration * 1000,
+            event.index,
+            false
+          );
+        } else if (event.type === "drum") {
+          playDrumAudioByIndex(event.index);
+          addNoteRectangle(event.note, event.color, 800, event.index, true);
+        }
+      }, event.time * 1000);
 
-    let currentTime = 0;
-    const minDrumGap = 0.15; // Minimum gap between drum hits
-    const maxDrumGap = 0.6; // Maximum gap to compress
-
-    normalizedSequence = drumNotes.map((note, index) => {
-      const result = {
-        ...note,
-        normalizedTime: currentTime,
-      };
-
-      // Calculate gap to next drum hit
-      if (index < drumNotes.length - 1) {
-        const originalGap = drumNotes[index + 1].time - note.time;
-        const compressedGap =
-          originalGap > maxDrumGap
-            ? maxDrumGap
-            : Math.max(originalGap, minDrumGap);
-        currentTime += compressedGap;
-      }
-
-      return result;
+      loopTimeouts.push(noteTimeout);
     });
 
-    musicalDuration = currentTime + 0.3; // Add small buffer for last drum
-    firstNoteTime = 0;
-  } else {
-    // Only piano notes - preserve exact timing
-    const lastNote = pianoNotes[pianoNotes.length - 1];
-    const lastNoteEndTime = lastNote.time + lastNote.duration;
-    musicalDuration = lastNoteEndTime - firstNoteTime;
+    // Schedule the next loop iteration with precise timing - NO GAP
+    const nextLoopTimeout = setTimeout(() => {
+      playLoopIteration();
+    }, loopDuration * 1000);
 
-    normalizedSequence = pianoNotes.map((note) => ({
-      ...note,
-      normalizedTime: note.time - firstNoteTime,
-    }));
-
-    console.log("Piano only - preserving exact timing");
+    loopTimeouts.push(nextLoopTimeout);
   }
 
-  // Total loop duration = musical content + small buffer for loop gap
-  const totalLoopDuration = Math.max(0.5, musicalDuration + 0.2);
-
-  console.log("Loop timing analysis:");
-  console.log("- Piano notes:", pianoNotes.length);
-  console.log("- Drum notes:", drumNotes.length);
-  console.log(
-    "- Musical content duration:",
-    musicalDuration.toFixed(2),
-    "seconds"
-  );
-  console.log(
-    "- Total loop duration:",
-    totalLoopDuration.toFixed(2),
-    "seconds"
-  );
-  console.log("- Normalized sequence:", normalizedSequence);
-
-  // Stop and clear any existing transport
-  Tone.Transport.stop();
-  Tone.Transport.cancel();
-
-  // Clear any existing loops
-  scheduledLoops.forEach((loop) => {
-    if (loop && loop.dispose) loop.dispose();
-  });
-  scheduledLoops = [];
-
-  // Create the main repeating loop
-  const mainLoop = new Tone.Loop((loopTime) => {
-    console.log("=== Starting loop iteration ===");
-
-    // Play each note at its calculated time
-    normalizedSequence.forEach((note, index) => {
-      const noteTime = loopTime + note.normalizedTime;
-
-      console.log(
-        `Playing ${note.type} ${note.note} at +${note.normalizedTime.toFixed(
-          2
-        )}s`
-      );
-
-      if (note.type === "piano") {
-        pianoSynth.triggerAttackRelease(note.note, note.duration, noteTime);
-      } else if (note.type === "drum") {
-        drumSynth.triggerAttackRelease(note.note, "8n", noteTime);
-      }
-
-      // Schedule visual feedback
-      const visualDelay = (noteTime - Tone.now()) * 1000;
-      if (visualDelay >= 0) {
-        setTimeout(() => {
-          addNoteRectangle(
-            note.note,
-            note.color,
-            note.type === "piano" ? note.duration * 1000 : 800,
-            note.index,
-            note.type === "drum"
-          );
-        }, visualDelay);
-      }
-    });
-  }, totalLoopDuration);
-
-  scheduledLoops.push(mainLoop);
-
-  // Start the loop and transport
-  mainLoop.start(0);
-  Tone.Transport.start();
-
-  console.log("Musical loop started with optimized timing!");
+  // Start the first loop iteration immediately
+  playLoopIteration();
 }
 
 // Update sphere status
@@ -405,38 +402,33 @@ function updateSphereStatus(state, message) {
   }
 }
 
-// Animation loop
+// Animation loop with simplified audio analysis
 function animate() {
   animationId = requestAnimationFrame(animate);
 
-  if (sphere && analyser && audioStarted) {
-    // Get frequency data
-    const frequencyData = analyser.getValue();
+  if (sphere && audioStarted) {
+    // Simple audio-reactive deformation based on recent activity
     const geometry = sphere.geometry;
     const positions = geometry.attributes.position.array;
 
-    // Deform sphere based on audio
+    // Create a pseudo-frequency effect based on recent audio activity
+    const time = Date.now() * 0.001;
+    const amplitude = 0.1 + Math.sin(time * 2) * 0.05;
+
+    // Deform sphere based on pseudo audio data
     for (let i = 0; i < positions.length; i += 3) {
       const originalX = originalPositions[i];
       const originalY = originalPositions[i + 1];
       const originalZ = originalPositions[i + 2];
 
-      // Calculate deformation
-      const frequencyIndex = Math.floor((i / 3) % frequencyData.length);
-      const amplitude = Math.max(
-        0,
-        (frequencyData[frequencyIndex] + 100) / 100
-      );
-      const deformation = 1 + amplitude * 1.2;
+      // Calculate deformation with wave patterns
+      const wave1 = Math.sin(time + i * 0.01) * amplitude;
+      const wave2 = Math.cos(time * 1.5 + i * 0.02) * amplitude * 0.5;
+      const deformation = 1 + wave1 + wave2;
 
-      // Add randomness
-      const randomFactor =
-        1 + Math.sin(Date.now() * 0.001 + i * 0.01) * amplitude * 0.3;
-      const finalDeformation = deformation * randomFactor;
-
-      positions[i] = originalX * finalDeformation;
-      positions[i + 1] = originalY * finalDeformation;
-      positions[i + 2] = originalZ * finalDeformation;
+      positions[i] = originalX * deformation;
+      positions[i + 1] = originalY * deformation;
+      positions[i + 2] = originalZ * deformation;
     }
 
     geometry.attributes.position.needsUpdate = true;
@@ -451,12 +443,89 @@ function animate() {
   renderer.render(scene, camera);
 }
 
+// Play drum audio by index with minimal latency
+function playDrumAudioByIndex(index) {
+  if (
+    index >= 0 &&
+    index < drumAudioPools.length &&
+    drumAudioPools[index].length > 0
+  ) {
+    // Find the first available audio element in the pool
+    const pool = drumAudioPools[index];
+    let audioToPlay = null;
+
+    for (let audio of pool) {
+      if (audio.paused || audio.ended || audio.currentTime === 0) {
+        audioToPlay = audio;
+        break;
+      }
+    }
+
+    // If no available audio found, use the first one anyway
+    if (!audioToPlay) {
+      audioToPlay = pool[0];
+    }
+
+    if (audioToPlay && audioToPlay.src) {
+      audioToPlay.currentTime = 0;
+      const playPromise = audioToPlay.play();
+      if (playPromise) {
+        playPromise.catch((e) => {
+          console.warn("Drum audio play failed:", e);
+        });
+      }
+    }
+  }
+}
+
+// Play note audio by index with minimal latency
+function playNoteAudioByIndex(index, duration = 0.5) {
+  if (
+    index >= 0 &&
+    index < noteAudioPools.length &&
+    noteAudioPools[index].length > 0
+  ) {
+    // Find the first available audio element in the pool
+    const pool = noteAudioPools[index];
+    let audioToPlay = null;
+
+    for (let audio of pool) {
+      if (audio.paused || audio.ended || audio.currentTime === 0) {
+        audioToPlay = audio;
+        break;
+      }
+    }
+
+    // If no available audio found, use the first one anyway
+    if (!audioToPlay) {
+      audioToPlay = pool[0];
+    }
+
+    if (audioToPlay && audioToPlay.src) {
+      audioToPlay.currentTime = 0;
+      const playPromise = audioToPlay.play();
+      if (playPromise) {
+        playPromise.catch((e) => console.warn("Note audio play failed:", e));
+      }
+
+      // Stop after duration for sustained effect
+      setTimeout(() => {
+        if (audioToPlay && !audioToPlay.paused) {
+          audioToPlay.pause();
+          audioToPlay.currentTime = 0;
+        }
+      }, duration * 1000);
+    }
+  }
+}
+
 // Play drum
-async function playDrum(noteIndex = 0) {
-  await initializeAudio();
-  if (drumSynth && noteIndex < drumNotes.length) {
+function playDrum(noteIndex = 0) {
+  if (noteIndex < drumNotes.length) {
     const note = drumNotes[noteIndex];
-    drumSynth.triggerAttackRelease(note, "8n");
+
+    // Play the audio file (no await needed)
+    playDrumAudioByIndex(noteIndex);
 
     // Add visual note
     addNoteRectangle(note, drumColors[noteIndex], 800, noteIndex, true);
@@ -466,7 +535,7 @@ async function playDrum(noteIndex = 0) {
       const noteData = {
         type: "drum",
         note: note,
-        time: Tone.now() - recordingStartTime,
+        time: getCurrentTime() - recordingStartTime,
         duration: 0.5,
         color: drumColors[noteIndex],
         index: noteIndex,
@@ -478,15 +547,19 @@ async function playDrum(noteIndex = 0) {
 }
 
 // Play piano note (start)
-async function startPianoNote(note, index) {
-  await initializeAudio();
-  if (pianoSynth && !activePianoNotes.has(note)) {
-    const synth = pianoSynth.triggerAttack(note);
+function startPianoNote(note, index) {
+  if (!activePianoNotes.has(note)) {
+    const startTime = getCurrentTime();
+    const recordingTime = isRecording ? startTime - recordingStartTime : 0;
+
     activePianoNotes.set(note, {
-      synth: synth,
-      startTime: Tone.now(),
-      recordingStartTime: isRecording ? Tone.now() - recordingStartTime : 0,
+      startTime: startTime,
+      recordingTime: recordingTime,
+      audioElement: null,
     });
+
+    // Play the audio file (no await needed)
+    playNoteAudioByIndex(index, 2); // 2 second default duration
 
     // Add visual note
     addNoteRectangle(note, noteColors[index], 2000, index, false);
@@ -495,17 +568,17 @@ async function startPianoNote(note, index) {
 
 // Stop piano note
 function stopPianoNote(note, index) {
-  if (pianoSynth && activePianoNotes.has(note)) {
+  if (activePianoNotes.has(note)) {
     const noteData = activePianoNotes.get(note);
-    pianoSynth.triggerRelease(note);
+    const endTime = getCurrentTime();
+    const duration = endTime - noteData.startTime;
 
     // Record if recording
     if (isRecording) {
-      const duration = Tone.now() - noteData.startTime;
       const recordedNote = {
         type: "piano",
         note: note,
-        time: noteData.recordingStartTime,
+        time: noteData.recordingTime,
         duration: duration,
         color: noteColors[index],
         index: index,
@@ -516,12 +589,6 @@ function stopPianoNote(note, index) {
 
     activePianoNotes.delete(note);
   }
-}
-
-// Legacy function for backward compatibility
-async function playPianoNote(note, index) {
-  await startPianoNote(note, index);
-  setTimeout(() => stopPianoNote(note, index), 500);
 }
 
 // Add note rectangle
@@ -536,14 +603,14 @@ function addNoteRectangle(note, color, duration, pitch, isDrum) {
   const height = isDrum ? 20 : 40;
 
   rect.style.cssText = `
-          left: 0%;
-          top: ${top}px;
-          width: ${width}px;
-          height: ${height}px;
-          background-color: ${color};
-          transform: translateX(-50%);
-          transition: left ${duration}ms linear;
-      `;
+    left: 0%;
+    top: ${top}px;
+    width: ${width}px;
+    height: ${height}px;
+    background-color: ${color};
+    transform: translateX(-50%);
+    transition: left ${duration}ms linear;
+  `;
 
   overlay.appendChild(rect);
 
@@ -558,16 +625,6 @@ function addNoteRectangle(note, color, duration, pitch, isDrum) {
       rect.parentNode.removeChild(rect);
     }
   }, duration + 100);
-}
-
-// Start loop (legacy function - now unused)
-async function startLoop() {
-  // This function is no longer used - sphere click controls everything
-}
-
-// Stop loop (legacy function - now unused)
-function stopLoop() {
-  // This function is no longer used - sphere click controls everything
 }
 
 // Keyboard handlers
@@ -668,20 +725,23 @@ function updatePianoVisual() {
       : noteColors[index] + "33";
 
     key.innerHTML = `
-                <div class="piano-key-label">
-                    <div>${pianoKeys[index].toUpperCase()}</div>
-                    <div class="piano-key-note">${note}</div>
-                </div>
-            `;
+      <div class="piano-key-label">
+        <div>${pianoKeys[index].toUpperCase()}</div>
+        <div class="piano-key-note">${note}</div>
+      </div>
+    `;
     pianoVisual.appendChild(key);
   });
 }
 
 // Initialize everything
-function init() {
+async function init() {
   initializeThreeJS();
   updateKeyDisplay();
   updatePianoVisual();
+
+  // Pre-initialize audio for instant response
+  await initializeAudio();
 
   // Add event listeners
   document.addEventListener("keydown", handleKeyDown);
