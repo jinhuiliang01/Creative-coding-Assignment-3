@@ -1,280 +1,362 @@
+/* Universal selector (*) applies to ALL HTML elements */
 * {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+  margin: 0; /* Remove default spacing around elements */
+  padding: 0; /* Remove default inner spacing of elements */
+  box-sizing: border-box; /* Include padding and border in element's total width/height */
 }
+/* This creates a clean, consistent starting point across all browsers */
+
+/* Body and main layout */
 
 body {
+  /* Font family with fallbacks (if first font isn't available, try the next) */
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  background-color: #f5f5f5;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 24px;
+
+  background-color: #f5f5f5; /* Light gray background for the entire page */
+  min-height: 100vh; /* Minimum height = 100% of viewport height */
+
+  /* Flexbox layout properties */
+  display: flex; /* Use flexbox for layout */
+  flex-direction: column; /* Stack children vertically (top to bottom) */
+  align-items: center; /* Center children horizontally */
+
+  padding: 24px; /* Add 24px of inner spacing on all sides */
 }
+/* This creates a centered, vertical layout for the entire page */
+
+/* Main heading styles */
 
 h1 {
-  font-size: 2rem;
-  font-weight: bold;
-  margin-bottom: 24px;
-  color: #374151;
+  font-size: 2rem; /* 2 times the root font size (usually 32px) */
+  font-weight: bold; /* Make text bold */
+  margin-bottom: 24px; /* Add 24px space below the heading */
+  color: #374151; /* Dark gray color */
 }
+/* This styles the main title of the application */
+
+/* Main visualization container */
 
 .visualization-container {
-  position: relative;
-  background: white;
-  border-radius: 8px;
+  position: relative; /* Allows child elements to be positioned relative to this container */
+  background: white; /* White background */
+  border-radius: 8px; /* Rounded corners (8px radius) */
+
+  /* Box shadow creates a subtle drop shadow effect */
+  /* Syntax: horizontal-offset vertical-offset blur-radius spread-radius color */
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-  margin-bottom: 24px;
-  overflow: hidden;
-  cursor: pointer;
+
+  margin-bottom: 24px; /* Space below this container */
+  overflow: hidden; /* Hide any content that extends beyond container boundaries */
+  cursor: pointer; /* Show pointer cursor when hovering (indicates clickable) */
 }
 
+/* Special styling when the container is in "looping" mode */
 .visualization-container.looping-active {
+  /* Green glowing shadow effect when looping is active */
   box-shadow: 0 0 20px rgba(34, 197, 94, 0.5);
+  /* rgba(34, 197, 94, 0.5) = green color with 50% transparency */
 }
+
+/* Note overlay for visual effects */
 
 .note-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
+  position: absolute; /* Position relative to nearest positioned parent */
+  top: 0; /* Align to top edge */
+  left: 0; /* Align to left edge */
+  width: 100%; /* Full width of parent */
+  height: 100%; /* Full height of parent */
+  pointer-events: none; /* Don't interfere with mouse clicks (clicks pass through) */
 }
+/* This creates an invisible layer where moving note rectangles appear */
+
+/* Individual note rectangles */
 
 .note-rect {
-  position: absolute;
-  border-radius: 4px;
-  opacity: 0.8;
-  color: white;
-  font-size: 12px;
-  font-weight: bold;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  position: absolute; /* Can be positioned anywhere within the overlay */
+  border-radius: 4px; /* Slightly rounded corners */
+  opacity: 0.8; /* 80% opaque (slightly transparent) */
+  color: white; /* White text color */
+  font-size: 12px; /* Small text size */
+  font-weight: bold; /* Bold text */
+
+  /* Flexbox properties to center text inside rectangle */
+  display: flex; /* Use flexbox layout */
+  align-items: center; /* Center vertically */
+  justify-content: center; /* Center horizontally */
 }
+/* These are the colored rectangles that move across screen when notes play */
+
+/* Controls section layout */
 
 .controls {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 16px;
+  display: flex; /* Use flexbox layout */
+  flex-direction: column; /* Stack children vertically */
+  align-items: center; /* Center children horizontally */
+  gap: 16px; /* Add 16px space between each child element */
 }
+/* This creates a centered vertical stack of control elements */
+
+/* Sphere status indicator */
 
 .sphere-status {
-  text-align: center;
-  background: white;
-  padding: 12px 24px;
-  border-radius: 8px;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-  font-weight: 600;
-  transition: all 0.3s;
+  text-align: center; /* Center the text */
+  background: white; /* White background */
+  padding: 12px 24px; /* 12px top/bottom padding, 24px left/right padding */
+  border-radius: 8px; /* Rounded corners */
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); /* Subtle shadow */
+  font-weight: 600; /* Semi-bold text */
+  transition: all 0.3s; /* Smooth transition for all properties over 0.3 seconds */
 }
 
+/* Different states of the sphere status */
 .sphere-status.idle {
-  color: #6b7280;
-  background-color: #f9fafb;
+  color: #6b7280; /* Gray text color */
+  background-color: #f9fafb; /* Very light gray background */
 }
 
 .sphere-status.recording {
-  color: #dc2626;
-  background-color: #fef2f2;
+  color: #dc2626; /* Red text color */
+  background-color: #fef2f2; /* Very light red background */
 }
 
 .sphere-status.looping {
-  color: #22c55e;
-  background-color: #f0fdf4;
+  color: #22c55e; /* Green text color */
+  background-color: #f0fdf4; /* Very light green background */
 }
+/* These styles change based on what the application is currently doing */
+
+/* Keyboard instructions section */
 
 .keyboard-instructions {
-  text-align: center;
-  background: white;
-  padding: 16px;
-  border-radius: 8px;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-  max-width: 800px;
+  text-align: center; /* Center all text */
+  background: white; /* White background */
+  padding: 16px; /* 16px inner spacing on all sides */
+  border-radius: 8px; /* Rounded corners */
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); /* Subtle shadow */
+  max-width: 800px; /* Maximum width of 800px (responsive design) */
 }
 
 .keyboard-instructions h3 {
-  font-size: 1.125rem;
-  font-weight: 600;
-  margin-bottom: 12px;
-  color: #374151;
+  font-size: 1.125rem; /* Slightly larger than normal text */
+  font-weight: 600; /* Semi-bold */
+  margin-bottom: 12px; /* Space below heading */
+  color: #374151; /* Dark gray color */
 }
+
+/* Keyboard layout grid */
 
 .keyboard-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-  font-size: 14px;
+  display: grid; /* Use CSS Grid layout system */
+  grid-template-columns: 1fr 1fr; /* Two equal columns (1fr = 1 fraction of available space) */
+  gap: 16px; /* 16px space between grid items */
+  font-size: 14px; /* Smaller text size */
 }
+/* This creates a two-column layout for piano and drum sections */
+
+/* Keyboard section headings */
 
 .key-section h4 {
-  font-weight: 600;
-  margin-bottom: 8px;
+  font-weight: 600; /* Semi-bold text */
+  margin-bottom: 8px; /* Space below heading */
 }
 
 .piano-keys h4 {
-  color: #2563eb;
+  color: #2563eb; /* Blue color for piano section */
 }
 
 .drum-keys h4 {
-  color: #dc2626;
+  color: #dc2626; /* Red color for drum section */
 }
+/* Different colors help distinguish between piano and drum sections */
+
+/* Key display layout */
 
 .key-display {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
+  display: flex; /* Use flexbox layout */
+  flex-wrap: wrap; /* Allow items to wrap to next line if needed */
+  gap: 4px; /* 4px space between each key indicator */
 }
+
+/* Individual key indicators */
 
 .key-item {
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-family: monospace;
-  transition: all 0.2s;
+  padding: 4px 8px; /* 4px top/bottom, 8px left/right padding */
+  border-radius: 4px; /* Rounded corners */
+  font-size: 12px; /* Small text */
+  font-family: monospace; /* Monospace font (fixed-width characters) */
+  transition: all 0.2s; /* Smooth transition for all properties */
 }
 
+/* Inactive key state (not currently pressed) */
 .key-item.inactive {
-  background-color: #e5e7eb;
-  color: #374151;
+  background-color: #e5e7eb; /* Light gray background */
+  color: #374151; /* Dark gray text */
 }
 
+/* Active key state (currently being pressed) */
 .key-item.active {
-  color: white;
-  transform: scale(1.05);
+  color: white; /* White text for contrast */
+  transform: scale(1.05); /* Scale up by 5% to show it's active */
 }
+/* The JavaScript code changes colors dynamically for active keys */
+
+/* Button group layout */
 
 .button-group {
-  display: flex;
-  gap: 16px;
+  display: flex; /* Use flexbox layout */
+  gap: 16px; /* 16px space between buttons */
 }
+
+/* General button styles */
 
 .btn {
-  padding: 12px 24px;
-  border: none;
-  border-radius: 8px;
-  font-weight: 600;
-  cursor: pointer;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-  transition: all 0.2s;
+  padding: 12px 24px; /* 12px top/bottom, 24px left/right padding */
+  border: none; /* Remove default button border */
+  border-radius: 8px; /* Rounded corners */
+  font-weight: 600; /* Semi-bold text */
+  cursor: pointer; /* Show pointer cursor on hover */
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); /* Subtle shadow */
+  transition: all 0.2s; /* Smooth transition for hover effects */
 }
 
+/* Button hover effect (when mouse is over button) */
 .btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 12px -2px rgba(0, 0, 0, 0.15);
+  transform: translateY(-1px); /* Move button up by 1px */
+  box-shadow: 0 6px 12px -2px rgba(0, 0, 0, 0.15); /* Larger shadow for depth */
 }
 
+/* Disabled button state */
 .btn:disabled {
-  background-color: #9ca3af;
-  cursor: not-allowed;
-  transform: none;
+  background-color: #9ca3af; /* Gray background */
+  cursor: not-allowed; /* Show "not allowed" cursor */
+  transform: none; /* Don't apply hover transform */
 }
 
+/* Specific button color variants */
+
+/* Red button (for stop/record actions) */
 .btn-red {
-  background-color: #ef4444;
-  color: white;
+  background-color: #ef4444; /* Red background */
+  color: white; /* White text */
 }
 
 .btn-red:hover {
-  background-color: #dc2626;
+  background-color: #dc2626; /* Darker red on hover */
 }
 
+/* Green button (for play/success actions) */
 .btn-green {
-  background-color: #10b981;
-  color: white;
+  background-color: #10b981; /* Green background */
+  color: white; /* White text */
 }
 
 .btn-green:hover {
-  background-color: #059669;
+  background-color: #059669; /* Darker green on hover */
 }
 
+/* Orange button (for warning/secondary actions) */
 .btn-orange {
-  background-color: #f97316;
-  color: white;
+  background-color: #f97316; /* Orange background */
+  color: white; /* White text */
 }
 
 .btn-orange:hover {
-  background-color: #ea580c;
+  background-color: #ea580c; /* Darker orange on hover */
 }
+
+/* Visual piano keyboard */
 
 .piano-visual {
-  display: flex;
-  gap: 2px;
-  background-color: #374151;
-  padding: 16px;
-  border-radius: 8px;
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  display: flex; /* Use flexbox to arrange piano keys horizontally */
+  gap: 2px; /* Small gap between keys */
+  background-color: #374151; /* Dark gray background (like a real piano) */
+  padding: 16px; /* Inner spacing around the keys */
+  border-radius: 8px; /* Rounded corners */
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); /* Shadow for depth */
 }
+
+/* Individual piano keys */
 
 .piano-key {
-  width: 48px;
-  height: 96px;
-  background: white;
-  border: 2px solid #d1d5db;
-  border-radius: 0 0 8px 8px;
-  cursor: pointer;
-  transition: all 0.2s;
+  width: 48px; /* Fixed width for each key */
+  height: 96px; /* Fixed height for each key */
+  background: white; /* White background (like real piano keys) */
+  border: 2px solid #d1d5db; /* Light gray border */
+  border-radius: 0 0 8px 8px; /* Rounded bottom corners only */
+  cursor: pointer; /* Show pointer cursor (clickable) */
+  transition: all 0.2s; /* Smooth transition for interactions */
+
+  /* Flexbox properties to center content */
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-end;
-  padding-bottom: 8px;
-  font-size: 12px;
-  font-weight: 600;
-  color: #374151;
+  flex-direction: column; /* Stack content vertically */
+  align-items: center; /* Center horizontally */
+  justify-content: flex-end; /* Align to bottom */
+
+  padding-bottom: 8px; /* Space from bottom edge */
+  font-size: 12px; /* Small text size */
+  font-weight: 600; /* Semi-bold text */
+  color: #374151; /* Dark gray text */
 }
 
+/* Piano key hover effect */
 .piano-key:hover {
-  background-color: #f3f4f6;
+  background-color: #f3f4f6; /* Very light gray on hover */
 }
 
+/* Piano key pressed state */
 .piano-key.pressed {
-  transform: scale(0.95);
+  transform: scale(0.95); /* Slightly smaller when pressed (like real keys) */
 }
+
+/* Piano key labels */
 
 .piano-key-label {
-  text-align: center;
+  text-align: center; /* Center the text within the label */
 }
 
 .piano-key-note {
-  font-size: 10px;
-  margin-top: 2px;
+  font-size: 10px; /* Even smaller text for note names */
+  margin-top: 2px; /* Small space above note name */
 }
 
+/* Instructions section */
+
 .instructions {
-  text-align: center;
-  color: #6b7280;
-  max-width: 600px;
+  text-align: center; /* Center all text */
+  color: #6b7280; /* Medium gray color */
+  max-width: 600px; /* Maximum width for readability */
 }
 
 .instructions p {
-  margin-bottom: 8px;
+  margin-bottom: 8px; /* Space between paragraphs */
 }
 
 .instructions-title {
-  font-weight: bold;
+  font-weight: bold; /* Bold text for titles */
 }
 
 .instructions-text {
-  font-size: 14px;
-  line-height: 1.5;
+  font-size: 14px; /* Slightly smaller text */
+  line-height: 1.5; /* 1.5 times the font size for line height (better readability) */
 }
 
+/* Responsive design for mobile or tablet */
+
+/* Media query: applies styles only when screen width is 768px or smaller */
 @media (max-width: 768px) {
+  /* Change keyboard grid to single column on smaller screens */
   .keyboard-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr; /* Single column instead of two */
   }
 
+  /* Stack buttons vertically on mobile */
   .button-group {
-    flex-direction: column;
-    width: 100%;
+    flex-direction: column; /* Change from horizontal to vertical layout */
+    width: 100%; /* Full width */
   }
 
+  /* Make piano scrollable horizontally on small screens */
   .piano-visual {
-    overflow-x: auto;
+    overflow-x: auto; /* Allow horizontal scrolling if needed */
   }
 }
